@@ -1,52 +1,43 @@
 import { createLoop } from './loop.js';
 import { createInput } from './input.js';
 import { createShip, integrate } from './sim/ship.js';
-import { wrap } from './sim/arena.js'
+import { wrap } from './sim/arena.js';
+import { setupCanvas } from './render/canvas.js';
+import { drawShip, drawStarfield, drawHud } from './render/draw.js';
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-
-function resizeCanvas() {
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-}
-resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
+const { ctx } = setupCanvas(canvas);
 
 const input = createInput(window);
-const ship = createShip({ x: 400, y: 300 });
+
+const stars = Array.from({ length: 140 }, () => ({
+  x: Math.random() * canvas.clientWidth,
+  y: Math.random() * canvas.clientHeight,
+  size: Math.random() * 1.5 + 0.5,
+  brightness: Math.random() * 0.6 + 0.4,
+}));
+
+let current = createShip({ x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 });
+let previous = { ...current };
 
 function simulate(step) {
-integrate(ship, input, step);
-  wrap(ship, canvas.width, canvas.height);
+  previous = { ...current };
+  integrate(current, input, step);
+
+  const beforeWrapX = current.x;
+  const beforeWrapY = current.y;
+  wrap(current, canvas.clientWidth, canvas.clientHeight);
+
+  previous.x += current.x - beforeWrapX;
+  previous.y += current.y - beforeWrapY;
+
   input.endFrame();
 }
 
 function render(alpha) {
-  ctx.fillStyle = '#0a0e1a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.save();
-  ctx.translate(ship.x, ship.y);
-  ctx.rotate(ship.angle);
-  ctx.fillStyle = '#e8eef7';
-  ctx.beginPath();
-  ctx.moveTo(16, 0);
-  ctx.lineTo(-12, 10);
-  ctx.lineTo(-6, 0);
-  ctx.lineTo(-12, -10);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-
-  const stats = loop.getStats();
-
-  ctx.fillStyle = '#8fd3ff';
-  ctx.font = '16px monospace';
-  ctx.fillText(`steps/s: ${stats.stepsPerSecond}`, 16, 30);
-  ctx.fillText(`frames/s: ${stats.framesPerSecond}`, 16, 54);
-  ctx.fillText(`frame time: ${stats.lastFrameDuration.toFixed(2)} ms`, 16, 78);
-  ctx.fillText(`alpha: ${alpha.toFixed(3)}`, 16, 102);
+  drawStarfield(ctx, canvas.clientWidth, canvas.clientHeight, stars);
+  drawShip(ctx, previous, current, alpha);
+  drawHud(ctx, loop.getStats());
 }
 
 const loop = createLoop({ step: 1 / 60, simulate, render });
